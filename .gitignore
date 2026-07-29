@@ -1,0 +1,7 @@
+# run and build related files
+/run/
+/build/
+/.gradle/
+/.idea/
+
+*.pdn

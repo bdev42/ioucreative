@@ -1,0 +1,26 @@
+{
+  "schemaVersion": 1,
+  "id": "ioucreative",
+  "version": "${version}",
+  "name": "IOUCreative",
+  "description": "Keep track of how many blocks you place & break in creative and pay off your debt in survival.",
+  "authors": [],
+  "contact": {
+    "homepage": "https://modrinth.com/mod/ioucreative",
+    "issues": "https://github.com/bdev42/ioucreative/issues"
+  },
+  "license": "MIT",
+  "icon": "assets/ioucreative/icon.png",
+  "environment": "*",
+  "entrypoints": {
+    "main": ["com.github.bdev42.ioucreative.IOUCreative"]
+  },
+  "mixins": [
+    "ioucreative.mixins.json"
+  ],
+  "depends": {
+    "fabricloader": ">=${loader_version}",
+    "fabric-api": "*",
+    "minecraft": ">=${minecraft_version}"
+  }
+}
