@@ -42,10 +42,12 @@ public class IOUCreative implements ModInitializer {
 
         CommandRegistrationCallback.EVENT.register((dispatcher, buildContext, selection) -> {
             dispatcher.register(Commands.literal("iouc")
-                    .then(Commands.literal("list")
-                            .executes(ctx -> IOUCreativeCommands.executeListCommand(ctx, ctx.getSource().getPlayerOrException())).requires(CommandSourceStack::isPlayer)
+                    .then(Commands.literal("list").requires(CommandSourceStack::isPlayer)
+                            .executes(ctx -> IOUCreativeCommands.executeListCommand(ctx, ctx.getSource().getPlayerOrException()))
                             .then(Commands.argument("player", EntityArgument.player())
                                     .executes(ctx -> IOUCreativeCommands.executeListCommand(ctx, EntityArgument.getPlayer(ctx, "player")))))
+                    .then(Commands.literal("pay-all").requires(CommandSourceStack::isPlayer)
+                            .executes(IOUCreativeCommands::executePayAllCommand))
                     .then(Commands.literal("pay").requires(CommandSourceStack::isPlayer)
                             .then(Commands.argument("owed_item", ItemArgument.item(buildContext))
                                     .executes(ctx -> IOUCreativeCommands.executePayCommand(ctx, 64))
@@ -127,14 +129,26 @@ public class IOUCreative implements ModInitializer {
             inventoryData.save(player, SeparateInventoryData.SaveSlot.CREATIVE);
             inventoryData.restore(player, SeparateInventoryData.SaveSlot.SURVIVAL);
 
-            player.sendSystemMessage(wrapMessage(Component.literal("Your updated debt is:\n"))
-                    .append(getPlayerDebtList(player))
+            int totalOwedItems = 0;
+            for (Map.Entry<String, Integer> entry : PlayersDebtData.getPlayersDebtData(player.level()).getPlayerDebtMap(player).entrySet()) {
+                totalOwedItems += Math.max(entry.getValue(), 0);
+            }
+
+            player.sendSystemMessage(wrapMessage(Component.literal("You now owe ")
+                    .append(Component.literal(""+totalOwedItems).withStyle(ChatFormatting.AQUA).withStyle(Style.EMPTY.withHoverEvent(new HoverEvent.ShowText(formattedItemCount(totalOwedItems, 64)))))
+                    .append(" items ")
+                    .append(Component.literal("[List]").withStyle(ChatFormatting.DARK_AQUA).withStyle(Style.EMPTY.withClickEvent(new ClickEvent.SuggestCommand("/iouc list")))))
             );
         }
     }
 
     public static MutableComponent wrapMessage(MutableComponent message) {
         return Component.literal("IOUCreative: ").withStyle(ChatFormatting.AQUA).append(message.withStyle(ChatFormatting.GREEN));
+    }
+
+    public static MutableComponent formattedItemCount(int count, int stackSize) {
+        count = Math.abs(count);
+        return Component.literal((count/stackSize)+" st + "+(count%stackSize));
     }
 
     public static MutableComponent getPlayerDebtList(ServerPlayer player) {
@@ -151,11 +165,14 @@ public class IOUCreative implements ModInitializer {
             Item item = BuiltInRegistries.ITEM.getValue(Identifier.parse(debtEntry.getKey()));
 
             MutableComponent line = Component.literal(val > 0 ? "+ " : "- ");
-            if (val > 0)
-                line.setStyle(Style.EMPTY.withHoverEvent(new HoverEvent.ShowItem(new ItemStackTemplate(item))).withClickEvent(new ClickEvent.SuggestCommand("/iouc pay " + item + " all")));
+            if (val > 0) {
+                line.setStyle(Style.EMPTY.withClickEvent(new ClickEvent.SuggestCommand("/iouc pay " + item + " all")));
+            }
             line.append(". ".repeat(Math.max(6 - valDigits.length(), 0))).append(valDigits).append("  ");
+            line.withStyle(Style.EMPTY.withHoverEvent(new HoverEvent.ShowText(formattedItemCount(val, item.getDefaultMaxStackSize()))));
             line.withStyle(debtEntry.getValue() > 0 ? ChatFormatting.RED : ChatFormatting.GREEN);
-            line.append(Component.translatable(item.getDescriptionId()).withStyle(ChatFormatting.AQUA));
+            line.append(Component.translatable(item.getDescriptionId()).withStyle(ChatFormatting.AQUA)
+                    .withStyle(Style.EMPTY.withHoverEvent(new HoverEvent.ShowItem(new ItemStackTemplate(item)))));
 
             list.append(line.append("\n"));
         }

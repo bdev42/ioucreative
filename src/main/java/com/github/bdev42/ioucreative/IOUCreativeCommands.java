@@ -6,14 +6,17 @@ import net.minecraft.ChatFormatting;
 import net.minecraft.commands.CommandSourceStack;
 import net.minecraft.commands.arguments.item.ItemArgument;
 import net.minecraft.core.registries.BuiltInRegistries;
+import net.minecraft.network.chat.ClickEvent;
 import net.minecraft.network.chat.Component;
 import net.minecraft.network.chat.MutableComponent;
+import net.minecraft.network.chat.Style;
 import net.minecraft.resources.Identifier;
 import net.minecraft.server.level.ServerPlayer;
 import net.minecraft.world.item.Item;
 import org.jspecify.annotations.Nullable;
 
 import java.util.Collection;
+import java.util.HashSet;
 import java.util.Map;
 
 public class IOUCreativeCommands {
@@ -26,8 +29,57 @@ public class IOUCreativeCommands {
             subject = Component.literal("").append(player.getName()).append("'s");
         }
 
+        MutableComponent list = IOUCreative.getPlayerDebtList(player);
+        if (list.toString().equals("empty")) {
+            context.getSource().sendFailure(subject.append(" debt is empty"));
+            return 0;
+        }
+
         context.getSource().sendSuccess(() -> subject.withStyle(ChatFormatting.GREEN)
-                .append(" current debt is:\n").append(IOUCreative.getPlayerDebtList(player)), false);
+                .append(" current debt is:\n")
+                .append(list)
+                .append(Component.literal("[Pay all] ")
+                        .withStyle(ChatFormatting.DARK_AQUA)
+                        .withStyle(Style.EMPTY.withClickEvent(new ClickEvent.SuggestCommand("/iouc pay-all")))
+                        .append(Component.literal("[Relist] \n")
+                                .withStyle(Style.EMPTY.withClickEvent(new ClickEvent.SuggestCommand("/iouc list "+player.getPlainTextName())))
+                        )
+                ), false);
+        return 1;
+    }
+
+    public static int executePayAllCommand(CommandContext<CommandSourceStack> context) throws CommandSyntaxException {
+        ServerPlayer player = context.getSource().getPlayerOrException();
+
+        if (player.isCreative()) {
+            context.getSource().sendFailure(Component.literal("You cannot use this command in Creative"));
+            return 0;
+        }
+
+        PlayersDebtData debtData = PlayersDebtData.getPlayersDebtData(context.getSource().getLevel());
+        int totalItems = 0;
+        int totalItemTypes = 0;
+        for (Map.Entry<String, Integer> entry : new HashSet<>(debtData.getPlayerDebtMap(player).entrySet())) {
+            if (entry.getValue() <= 0) continue;
+
+            Item item = BuiltInRegistries.ITEM.getValue(Identifier.tryParse(entry.getKey()));
+
+            int actuallyRemoved = player.getInventory().clearOrCountMatchingItems(itemStack -> itemStack.is(item), entry.getValue(), player.inventoryMenu.getCraftSlots());
+            if (actuallyRemoved > 0) {
+                debtData.decreasePlayerDebt(player, item, actuallyRemoved);
+                totalItems += actuallyRemoved;
+                totalItemTypes++;
+            }
+        }
+
+        int finalTotalItems = totalItems;
+        int finalTotalItemTypes = totalItemTypes;
+        if (finalTotalItems == 0) {
+            context.getSource().sendFailure(Component.literal("You do not have any owed items on you"));
+            return 0;
+        }
+        context.getSource().sendSuccess(() -> Component.literal("Successfully paid off a total of " + finalTotalItems + " items across " + finalTotalItemTypes + " different item type(s).").withStyle(ChatFormatting.GREEN), false);
+        executeListCommand(context, player);
         return 1;
     }
 
@@ -73,7 +125,7 @@ public class IOUCreativeCommands {
         for (ServerPlayer player : players) {
             if (owed_item == null) {
                 int itemsReset = 0;
-                for (Map.Entry<String, Integer> entry : debtData.getPlayerDebtMap(player).entrySet()) {
+                for (Map.Entry<String, Integer> entry : new HashSet<>(debtData.getPlayerDebtMap(player).entrySet())) {
                     debtData.setPlayerDebt(player, BuiltInRegistries.ITEM.getValue(Identifier.parse(entry.getKey())), 0);
                     itemsReset++;
                 }
