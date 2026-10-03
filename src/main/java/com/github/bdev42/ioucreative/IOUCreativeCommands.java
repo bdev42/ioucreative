@@ -64,7 +64,7 @@ public class IOUCreativeCommands {
 
             Item item = BuiltInRegistries.ITEM.getValue(Identifier.tryParse(entry.getKey()));
 
-            int actuallyRemoved = player.getInventory().clearOrCountMatchingItems(itemStack -> itemStack.is(item), entry.getValue(), player.inventoryMenu.getCraftSlots());
+            int actuallyRemoved = player.getInventory().clearOrCountMatchingItems(itemStack -> itemStack.is(item), false, entry.getValue(), player.inventoryMenu.getCraftSlots());
             if (actuallyRemoved > 0) {
                 debtData.decreasePlayerDebt(player, item, actuallyRemoved);
                 totalItems += actuallyRemoved;
@@ -101,7 +101,7 @@ public class IOUCreativeCommands {
         }
         maxQuantity = maxQuantity == -1 ? amountOwed : Math.min(amountOwed, maxQuantity);
 
-        int actuallyRemoved = player.getInventory().clearOrCountMatchingItems(itemStack -> itemStack.is(item), maxQuantity, player.inventoryMenu.getCraftSlots());
+        int actuallyRemoved = player.getInventory().clearOrCountMatchingItems(itemStack -> itemStack.is(item), false, maxQuantity, player.inventoryMenu.getCraftSlots());
         if (actuallyRemoved == 0) {
             context.getSource().sendFailure(Component.literal("You do not have any of this item on you"));
             return 0;
